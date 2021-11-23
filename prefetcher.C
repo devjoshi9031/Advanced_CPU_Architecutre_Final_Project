@@ -21,7 +21,10 @@ void Prefetcher::completeRequest(u_int32_t cycle) { _ready = false; }
 
 void Prefetcher::cpuRequest(Request req) { 
 	if(!_ready && !req.HitL1) {
-		_nextReq.addr = req.addr + 32;
+		printf("Data miss on mem_address: %x\t and the pc: %x\t for a %d operation\n", req.addr, req.pc, req.load);
+		_nextReq.addr = req.addr + 64;
 		_ready = true;
+		return;
 	}
+	printf("Data hit on mem_address: %x\t and the pc: %x\t for a %d operation\n", req.addr, req.pc, req.load);
 }

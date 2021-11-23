@@ -1,0 +1,24 @@
+///Sample Prefetcher:///
+total run time: 1675273
+D-cache total hit rate: 0.977616
+L2 cache total hit rate: 0.655647
+AMAT: 1.580410
+Average Memory Queue Size: 0.154165
+L2 BW Utilization: 0.012782
+Memory BW Utilization: 0.128445
+
+///Prefetch 64 bytes without miss: ///
+total run time: 1583256
+D-cache total hit rate: 0.982752
+L2 cache total hit rate: 0.755682
+AMAT: 1.396376
+Average Memory Queue Size: 0.202051
+L2 BW Utilization: 0.086559
+Memory BW Utilization: 0.142320
+total run time: 1583256
+D-cache total hit rate: 0.982752
+L2 cache total hit rate: 0.755682
+AMAT: 1.396376
+Average Memory Queue Size: 0.202051
+L2 BW Utilization: 0.086559
+Memory BW Utilization: 0.142320
