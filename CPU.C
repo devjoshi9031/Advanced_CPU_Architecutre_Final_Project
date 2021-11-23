@@ -1,4 +1,4 @@
-			#include "CPU.h"
+#include "CPU.h"
 
 CPU::CPU(char* trace_file) {
 	_trace = fopen(trace_file,"r");
@@ -75,7 +75,10 @@ cpuState CPU::getStatus(u_int32_t cycle) {
 }
 
 // update the CPU's status
-void CPU::setStatus(cpuState new_state) { _state =  new_state; }
+void CPU::setStatus(cpuState new_state) { _state =  new_state; 
+//if(_state == WAITING) 
+//fprintf(stderr,"changed to waiting\n");
+}
 
 double CPU::getHitRateL1() { return (double)hitsL1 / (double)nRequests; }
 
