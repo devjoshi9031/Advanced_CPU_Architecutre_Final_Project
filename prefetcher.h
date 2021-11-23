@@ -4,6 +4,10 @@
 #include <sys/types.h>
 
 struct Request;
+struct tag_pf{
+	u_int32_t addr;
+	bool tag;
+};
 
 class Prefetcher {
   public:
