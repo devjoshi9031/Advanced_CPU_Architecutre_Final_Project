@@ -256,13 +256,13 @@ int main(int argc, char* argv[]) {
 	double L2BW = (double)nRequestsL2 / (double)curr_cycle;
 	double memBW = (double)memCycles / (double)curr_cycle;
 
-	fprintf(stderr, "total run time: %u\n",curr_cycle);
-	fprintf(stderr, "D-cache total hit rate: %f\n",cpu.getHitRateL1());
-	fprintf(stderr, "L2 cache total hit rate: %f\n",cpu.getHitRateL2());
-	fprintf(stderr, "AMAT: %f\n",cpu.getAMAT());
-	fprintf(stderr, "Average Memory Queue Size: %f\n",avgMemQ);
-	fprintf(stderr, "L2 BW Utilization: %f\n",L2BW);
-	fprintf(stderr, "Memory BW Utilization: %f\n",memBW);
+	//fprintf(stderr, "total run time: %u\n",curr_cycle);
+	//fprintf(stderr, "D-cache total hit rate: %f\n",cpu.getHitRateL1());
+	//fprintf(stderr, "L2 cache total hit rate: %f\n",cpu.getHitRateL2());
+	printf("%.4f\n",cpu.getAMAT());
+	//fprintf(stderr, "Average Memory Queue Size: %f\n",avgMemQ);
+	//fprintf(stderr, "L2 BW Utilization: %f\n",L2BW);
+	//fprintf(stderr, "Memory BW Utilization: %f\n",memBW);
 
 
 	// create output file name based on trace file name
@@ -271,13 +271,13 @@ int main(int argc, char* argv[]) {
 //	strcat(outfile,".out");
 
 //	fp = fopen(outfile,"w"); // open outfile for writing
-	fp = stdout;
+//fp = stdout;
 //	free(outfile);
 
 //	fprintf(fp,"%u\t",curr_cycle);
 //	fprintf(fp,"%.4f\t",cpu.getHitRateL1());
 //	fprintf(fp,"%.4f\t",cpu.getHitRateL2());
-//	fprintf(fp,"%.4f\t",cpu.getAMAT());
+	fprintf(stderr,"%.4f\t",cpu.getAMAT());
 //	fprintf(fp,"%.4f\t",avgMemQ);
 //	fprintf(fp,"%.4f\t",L2BW);
 //	fprintf(fp,"%.4f\n",memBW);
