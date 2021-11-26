@@ -1,15 +1,20 @@
 #include "prefetcher.h"
 #include "mem-sim.h"
-
+#include <iostream>
+#include <queue>
 #include<math.h>
 #include <stdio.h>
 #include <sys/types.h>
 
-// options to use for this define: [NO_PREFETCH, ALWAYS_PREFETCH, SAMPLE_PREFETCH, TAG_SEQ_PREFETCH, STRIDE_DIRECTED_PREFETCH]
-#define STRIDE_DIRECTED_PREFETCH
 
+// options to use for this define: [NO_PREFETCH, ALWAYS_PREFETCH, SAMPLE_PREFETCH, TAG_SEQ_PREFETCH, STRIDE_DIRECTED_PREFETCH]
+#define ALWAYS_PREFETCH	
+// #define DEBUG
 
 Request _nextReq;
+Request previous;
+
+
 bool _ready=false;
 
 #ifdef TAG_SEQ_PREFETCH
@@ -23,12 +28,21 @@ int global_index=0;
 struct spt_t{
 	u_int32_t pc;
 	u_int32_t addr;
+	bool tag;
 };
 spt_t stride_prefetcher_buffer[MAX_ENTRIES];
 int global_index=0, stride=0;
+float spt_hit=0, spt_miss=0;
 #endif
 
-
+Prefetcher::Prefetcher() { 
+	_ready = false;
+	#ifdef STRIDE_DIRECTED_PREFETCH
+	for(int i=0; i<MAX_ENTRIES; i++){
+		stride_prefetcher_buffer[i].tag=false;
+	}
+	#endif
+	 }
 
 bool Prefetcher::hasRequest(u_int32_t cycle) {
 	return _ready;
@@ -56,8 +70,6 @@ u_int32_t Prefetcher::getTag(u_int32_t addr) {
  * 
  */
 void Prefetcher::cpuRequest(Request req) { 
-//	printf("Stride: %d\n",req.addr-_nextReq.addr);
-//	_nextReq.addr = req.addr;
 
 #ifdef NO_PREFETCH
 	_ready=false;
@@ -77,7 +89,7 @@ void Prefetcher::cpuRequest(Request req) {
 
 	/**
 	 * This is going to be the baseline. Sample Prefetcher given by the professor.
-	 * [AVERAGE AMAT: 4.29 SECS]
+	 * [AVERAGE AMAT: 4.29 SECS] 25.644400
 	 */
 #ifdef SAMPLE_PREFETCH
 	if(!_ready && !req.HitL1){
@@ -101,7 +113,6 @@ void Prefetcher::cpuRequest(Request req) {
 		if(req.addr == tagged_sequential_prefetcher[i].addr){
 			// we need to check if this particular block is still in the cache. This can be done by ishit?
 			if(!tagged_sequential_prefetcher[i].tag){
-			//	printf("actually prefetched block got referenced.\n");
 				tagged_sequential_prefetcher[i].tag=true;
 				_nextReq.addr = req.addr + 32;
 				_ready=true;
@@ -138,33 +149,61 @@ void Prefetcher::cpuRequest(Request req) {
 
 /**
  * Questions for stride prefetcher:
- * 1. How to get always a unique value for every unique program counter.
- * 2. if I use "%" this gives aleast two alias for the same pc.
+ * Correct Implementation of SPT table. This is not that effective for the traces presented here.
+ * [AMAT: 4.09 SECS] TOTALSECS: 24.572100
  */
 #ifdef STRIDE_DIRECTED_PREFETCH
-	
-	//global_index %= MAX_ENTRIES;
 	//check if we have the desired block of data. If not, put it in the buffer at the desired place.
-	if(!_ready)
-		global_index = (req.pc) % MAX_ENTRIES;
-		if(req.pc == stride_prefetcher_buffer[global_index].pc){
+	if(spt_hit!=0)
+#ifdef DEBUG
+		printf("spt_hit_ratio: %f\n", (spt_hit/(spt_hit+spt_miss)));
+#endif
+
+	if(req.fromCPU){
+
+#ifdef DEBUG
+		printf("prev.addr = %d\t prev.pc = %d\t req.pc = %d\t req.addr= %x\t stride: %d\n", previous.addr,previous.pc, req.pc, req.addr, req.addr-previous.addr);
+#endif
+		previous.addr = req.addr;
+	}
+	if(!_ready){
+		global_index = (req.pc)%MAX_ENTRIES;
+
+		if(stride_prefetcher_buffer[global_index].tag){
+			if(stride_prefetcher_buffer[global_index].pc == req.pc){
+				spt_hit++;
 				stride = req.addr - stride_prefetcher_buffer[global_index].addr;
+	#ifdef DEBUG
+				printf("STRIDE: %d\t SPT_HIT: %f\n", stride, spt_hit);
+	#endif
 				if(stride!=0){
 					_ready=true;
 					_nextReq.addr = req.addr + stride;
-					//stride_prefetcher_buffer[global_index].pc = req.pc;
-					stride_prefetcher_buffer[global_index].addr = _nextReq.addr;
-					//stride_prefetcher_buffer[global_index].valid = true;
-					return;
+					stride_prefetcher_buffer[global_index].addr = req.addr;
+					
 				}
-		}
-		else{
+				return;
+			}
+			else{
+				spt_miss++;
 				stride_prefetcher_buffer[global_index].addr = req.addr;
 				stride_prefetcher_buffer[global_index].pc = req.pc;
-				//stride_prefetcher_buffer[global_index].valid = true;
-		}	
+				stride_prefetcher_buffer[global_index].tag = true;
+				_ready=false;
+			}
+		}
+		else{
+			spt_miss++;
+			stride_prefetcher_buffer[global_index].addr = req.addr;
+			stride_prefetcher_buffer[global_index].pc = req.pc;
+			stride_prefetcher_buffer[global_index].tag = true;
+			_ready=false;
+		}
+	}
 	return;
 #endif
+
+
 
 
 }

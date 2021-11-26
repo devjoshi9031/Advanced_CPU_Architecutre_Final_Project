@@ -12,16 +12,14 @@ struct tag_pf{
 	// bool valid;
 };
 
-// double log2(double x)
-// {
-// 	return log(x)/log(2);
-// }
+
 
 
 class Prefetcher {
 	private:
 	int _blockSize = 32,_numSets= 1024;
   public:
+    Prefetcher();
 	// should return true if a request is ready for this cycle
 	bool hasRequest(u_int32_t cycle);
 

@@ -256,13 +256,13 @@ int main(int argc, char* argv[]) {
 	double L2BW = (double)nRequestsL2 / (double)curr_cycle;
 	double memBW = (double)memCycles / (double)curr_cycle;
 
-	//fprintf(stderr, "total run time: %u\n",curr_cycle);
-	//fprintf(stderr, "D-cache total hit rate: %f\n",cpu.getHitRateL1());
-	//fprintf(stderr, "L2 cache total hit rate: %f\n",cpu.getHitRateL2());
+	// fprintf(stderr, "total run time: %u\n",curr_cycle);
+	// fprintf(stderr, "D-cache total hit rate: %f\n",cpu.getHitRateL1());
+	// fprintf(stderr, "L2 cache total hit rate: %f\n",cpu.getHitRateL2());
 	printf("%.4f\n",cpu.getAMAT());
-	//fprintf(stderr, "Average Memory Queue Size: %f\n",avgMemQ);
-	//fprintf(stderr, "L2 BW Utilization: %f\n",L2BW);
-	//fprintf(stderr, "Memory BW Utilization: %f\n",memBW);
+	// fprintf(stderr, "Average Memory Queue Size: %f\n",avgMemQ);
+	// fprintf(stderr, "L2 BW Utilization: %f\n",L2BW);
+	// fprintf(stderr, "Memory BW Utilization: %f\n",memBW);
 
 
 	// create output file name based on trace file name
