@@ -8,7 +8,7 @@
 
 
 // options to use for this define: [NO_PREFETCH, ALWAYS_PREFETCH, SAMPLE_PREFETCH, TAG_SEQ_PREFETCH, STRIDE_DIRECTED_PREFETCH]
-#define ALWAYS_PREFETCH	
+#define TAG_SEQ_PREFETCH	
 // #define DEBUG
 
 Request _nextReq;
@@ -37,11 +37,17 @@ float spt_hit=0, spt_miss=0;
 
 Prefetcher::Prefetcher() { 
 	_ready = false;
-	#ifdef STRIDE_DIRECTED_PREFETCH
+#ifdef TAG_SEQ_PREFETCH
+	for(int i=0; i<MAXIMUM_ENTRIES; i++){
+		tagged_sequential_prefetcher[i].tag=false;
+	}
+#endif
+
+#ifdef STRIDE_DIRECTED_PREFETCH
 	for(int i=0; i<MAX_ENTRIES; i++){
 		stride_prefetcher_buffer[i].tag=false;
 	}
-	#endif
+#endif
 	 }
 
 bool Prefetcher::hasRequest(u_int32_t cycle) {
@@ -66,7 +72,7 @@ u_int32_t Prefetcher::getTag(u_int32_t addr) {
 	return tag;
 }
 
-/** One strange observation: (nextReq.addr != req.addr) == (_nextREq.addr == req.addr)
+/** One strange observation: #(nextReq.addr != req.addr) == #(_nextREq.addr == req.addr)
  * 
  */
 void Prefetcher::cpuRequest(Request req) { 
@@ -108,43 +114,64 @@ void Prefetcher::cpuRequest(Request req) {
 	/**
 	 * This loop is to check if we have an entry that has already being pre-fetch. If yes, change the bit the tag bit to 1 and get the next block.
 	 */
-	
-	for(int i=0; i<global_index%MAXIMUM_ENTRIES; i++){
-		if(req.addr == tagged_sequential_prefetcher[i].addr){
-			// we need to check if this particular block is still in the cache. This can be done by ishit?
-			if(!tagged_sequential_prefetcher[i].tag){
-				tagged_sequential_prefetcher[i].tag=true;
-				_nextReq.addr = req.addr + 32;
-				_ready=true;
-				return;
-			}
-			else{
-				_nextReq.addr = req.addr + 32;
-				_ready=true;
-				return;
-			}
-		}
-	}
-	
-	
-	
-	// This will check if the block is prefetched. If yes, just get it in the buffer and set the tag to zero. There should be no prefetch for this. WE can have a prefetch if this is prefetched.
+	global_index = (req.addr) % MAXIMUM_ENTRIES;
+	//printf("req.pc: %d	req.addr: %d\nreq.pc: %x	req.addr: %x\n", req.pc, req.addr,req.pc, req.addr);
 	if(!req.fromCPU){
-		tagged_sequential_prefetcher[global_index%MAXIMUM_ENTRIES].addr = req.addr;
-		tagged_sequential_prefetcher[global_index%MAXIMUM_ENTRIES].tag = false;	
-		global_index++;
-		_ready=false;		
+		tagged_sequential_prefetcher[global_index].addr = req.addr;
+		tagged_sequential_prefetcher[global_index].tag = false;
+		_ready=false;
+		return;
 	}
-	// If the req.addr is not the prefetched block, set the tag to one and prefetch the next block.
+	else if(tagged_sequential_prefetcher[global_index].addr == req.addr){
+		tagged_sequential_prefetcher[global_index].tag = true;
+		_nextReq.addr = req.addr+64;
+		_ready=true;
+		return;
+	}
 	else{
-			tagged_sequential_prefetcher[global_index%MAXIMUM_ENTRIES].addr = req.addr;
-			tagged_sequential_prefetcher[global_index%MAXIMUM_ENTRIES].tag = true;
-			global_index++;
-			_nextReq.addr = req.addr + 32; 
-			_ready=true;
-		}
+		tagged_sequential_prefetcher[global_index].addr = req.addr;
+		tagged_sequential_prefetcher[global_index].tag = true;
+		_nextReq.addr = req.addr+32;
+		_ready=true;
+	}
+	
+	
+	// for(int i=0; i<global_index%MAXIMUM_ENTRIES; i++){
+	// 	if(req.addr == tagged_sequential_prefetcher[i].addr){
+	// 		// we need to check if this particular block is still in the cache. This can be done by ishit?
+	// 		if(!tagged_sequential_prefetcher[i].tag){
+	// 			tagged_sequential_prefetcher[i].tag=false;
+	// 			_nextReq.addr = req.addr + 32;
+	// 			_ready=true;
+	// 			return;
+	// 		}
+	// 		else{
+	// 			_nextReq.addr = req.addr + 32;
+	// 			_ready=true;
+	// 			return;
+	// 		}
+	// 	}
+	// }
+	
+	
+	
+	// // This will check if the block is prefetched. If yes, just get it in the buffer and set the tag to zero. There should be no prefetch for this. WE can have a prefetch if this is prefetched.
+	// if(!req.fromCPU){
+	// 	tagged_sequential_prefetcher[global_index%MAXIMUM_ENTRIES].addr = req.addr;
+	// 	tagged_sequential_prefetcher[global_index%MAXIMUM_ENTRIES].tag = false;	
+	// 	global_index++;
+	// 	_ready=false;		
+	// }
+	// // If the req.addr is not the prefetched block, set the tag to one and prefetch the next block.
+	// else{
+	// 		tagged_sequential_prefetcher[global_index%MAXIMUM_ENTRIES].addr = req.addr;
+	// 		tagged_sequential_prefetcher[global_index%MAXIMUM_ENTRIES].tag = true;
+	// 		global_index++;
+	// 		_nextReq.addr = req.addr + 32; 
+	// 		_ready=true;
+	// 	}
 
-	return; 
+	// return; 
 #endif
 
 /**
