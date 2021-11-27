@@ -7,8 +7,9 @@
 #include <sys/types.h>
 
 
-// options to use for this define: [NO_PREFETCH, ALWAYS_PREFETCH, SAMPLE_PREFETCH, TAG_SEQ_PREFETCH, STRIDE_DIRECTED_PREFETCH]
-#define TAG_SEQ_PREFETCH	
+
+// options to use for this define: [NO_PREFETCH, ALWAYS_PREFETCH, SAMPLE_PREFETCH, TAG_SEQ_PREFETCH, STRIDE_DIRECTED_PREFETCH, RPT_PREFETCH]
+#define RPT_PREFETCH	
 // #define DEBUG
 
 Request _nextReq;
@@ -34,6 +35,22 @@ spt_t stride_prefetcher_buffer[MAX_ENTRIES];
 int global_index=0, stride=0;
 float spt_hit=0, spt_miss=0;
 #endif
+
+#ifdef RPT_PREFETCH
+queue<Request> MyQ;
+
+#define MAX_ENTRIES 4096
+enum STATE{ INITIAL, TRANSITION, NO_PREDICTION, STEADY};
+struct rpt_t{
+	u_int32_t pc;
+	u_int32_t prev_addr;
+	int16_t stride;
+	u_int8_t state;
+};
+rpt_t rpt_prefetcher_buffer[MAX_ENTRIES];
+int global_index=0;
+bool correct=false;
+#endif 
 
 Prefetcher::Prefetcher() { 
 	_ready = false;
@@ -228,6 +245,93 @@ void Prefetcher::cpuRequest(Request req) {
 		}
 	}
 	return;
+#endif
+
+#ifdef RPT_PREFETCH
+
+// To check 
+if(_ready){
+	//printf("aaiya thi pachu gayu\n");
+	return;
+}
+
+// Get the global index indexed by the pc of the instruction.
+global_index = (req.pc) % MAX_ENTRIES;
+correct = false;
+// Check if we have the same pc in the rpt table or it has been replaced by another pc due to aliasing or this is the first time we have seen this pc.
+if(req.pc != rpt_prefetcher_buffer[global_index].pc){
+	rpt_prefetcher_buffer[global_index].pc = req.pc;
+	rpt_prefetcher_buffer[global_index].prev_addr = req.addr;
+	rpt_prefetcher_buffer[global_index].stride = 0;
+	rpt_prefetcher_buffer[global_index].state = INITIAL;
+	_ready = false; // no prefetch as this will only tell to prefetch the current block, which doesn't make sense.
+}
+
+// We have an entry in the RPT! Wohooo!!. Let's see the state and check how is it going.
+else{
+	// Depending on the paper, if(prev_addr+stride = curr_addr) -> correct; else -> incorrect.
+	if(req.addr == (rpt_prefetcher_buffer[global_index].prev_addr + rpt_prefetcher_buffer[global_index].stride))
+		correct = true;
+	// Change the state from INITIAL to TRANSITION and change the stride and everything.
+	if((rpt_prefetcher_buffer[global_index].state == INITIAL) && (correct==false)){
+		rpt_prefetcher_buffer[global_index].stride = req.addr - rpt_prefetcher_buffer[global_index].prev_addr;
+		rpt_prefetcher_buffer[global_index].prev_addr = req.addr;
+		rpt_prefetcher_buffer[global_index].state = TRANSITION;
+		_ready=true;
+		_nextReq.addr = req.addr+rpt_prefetcher_buffer[global_index].stride;
+		return;
+	}
+	// Change the state from TRANS or STEADY to STEADY. We have a steady stride for 2 consecutive iteration.
+	else if(( rpt_prefetcher_buffer[global_index].state == TRANSITION || rpt_prefetcher_buffer[global_index].state == STEADY) && (correct==true)){
+		rpt_prefetcher_buffer[global_index].prev_addr = req.addr;
+		rpt_prefetcher_buffer[global_index].state = STEADY;
+		//printf("ama vadhare hovu joie\n");
+		if(rpt_prefetcher_buffer[global_index].stride!=0){
+		_ready=true;
+		_nextReq.addr = req.addr+ 64;
+		}
+		else 
+			_ready=false;
+		return;
+	}
+	// If the stride changed from the steady state and hence change the state from STEADY to INITIAL.
+	else if((rpt_prefetcher_buffer[global_index].state == STEADY) && (correct==false)){
+		rpt_prefetcher_buffer[global_index].prev_addr = req.addr;
+		rpt_prefetcher_buffer[global_index].state = INITIAL;
+		_ready=false;
+		// _nextReq.addr = req.addr+rpt_prefetcher_buffer[global_index].stride;
+		return;
+	}
+	// If the stride changed in TRANSITION STATE: Go to the NO PRED State.
+	else if((rpt_prefetcher_buffer[global_index].state == TRANSITION) && (correct==false)){
+		rpt_prefetcher_buffer[global_index].stride = req.addr - rpt_prefetcher_buffer[global_index].prev_addr;
+		rpt_prefetcher_buffer[global_index].prev_addr = req.addr;
+		rpt_prefetcher_buffer[global_index].state = NO_PREDICTION;
+		_ready=false;
+		return;
+	}
+	// If the stride didn't changed in NO PRED State; change the state to TRANS.
+	else if((rpt_prefetcher_buffer[global_index].state == NO_PREDICTION) && (correct==true)){
+		rpt_prefetcher_buffer[global_index].prev_addr = req.addr;
+		rpt_prefetcher_buffer[global_index].state = TRANSITION;
+		_ready=true;
+		_nextReq.addr = req.addr + 64;
+		return;
+	}
+
+	// If the stride chnaged in the NO PRED State, stay in the same state.
+	else if((rpt_prefetcher_buffer[global_index].state == NO_PREDICTION) && (correct==false)){
+		rpt_prefetcher_buffer[global_index].stride = req.addr - rpt_prefetcher_buffer[global_index].prev_addr;
+		rpt_prefetcher_buffer[global_index].prev_addr = req.addr;
+		_ready = false;
+		return;
+	}
+
+	else{
+	//	printf("aaiya kai b thai jaay aavu j na joie\n");
+	}
+}
+return;
 #endif
 
 

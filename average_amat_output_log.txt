@@ -1,0 +1,2 @@
+OUTPUT FOR THE 
+sum = 0.000000
