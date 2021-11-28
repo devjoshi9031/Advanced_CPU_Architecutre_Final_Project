@@ -259,7 +259,7 @@ int main(int argc, char* argv[]) {
 	// fprintf(stderr, "total run time: %u\n",curr_cycle);
 	// fprintf(stderr, "D-cache total hit rate: %f\n",cpu.getHitRateL1());
 	// fprintf(stderr, "L2 cache total hit rate: %f\n",cpu.getHitRateL2());
-	printf("%.4f\n",cpu.getAMAT());
+	//rintf("%.4f\n",cpu.getAMAT());
 	// fprintf(stderr, "Average Memory Queue Size: %f\n",avgMemQ);
 	// fprintf(stderr, "L2 BW Utilization: %f\n",L2BW);
 	// fprintf(stderr, "Memory BW Utilization: %f\n",memBW);
@@ -277,7 +277,7 @@ int main(int argc, char* argv[]) {
 //	fprintf(fp,"%u\t",curr_cycle);
 //	fprintf(fp,"%.4f\t",cpu.getHitRateL1());
 //	fprintf(fp,"%.4f\t",cpu.getHitRateL2());
-	fprintf(stderr,"%.4f\t",cpu.getAMAT());
+	printf("%.4f\t",cpu.getAMAT());
 //	fprintf(fp,"%.4f\t",avgMemQ);
 //	fprintf(fp,"%.4f\t",L2BW);
 //	fprintf(fp,"%.4f\n",memBW);

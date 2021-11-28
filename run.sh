@@ -1,5 +1,5 @@
 #!/bin/bash  
-
+echo "called"
 make clean
 make 
 

@@ -25,10 +25,12 @@ int global_index=0;
 #endif
 
 #ifdef STRIDE_DIRECTED_PREFETCH
+int head=0, index_spt=0;
 #define MAX_ENTRIES 512
 struct spt_t{
 	u_int32_t pc;
 	u_int32_t addr;
+	u_int16_t last_stride;
 	bool tag;
 };
 spt_t stride_prefetcher_buffer[MAX_ENTRIES];
@@ -37,10 +39,9 @@ float spt_hit=0, spt_miss=0;
 #endif
 
 #ifdef RPT_PREFETCH
-queue<Request> MyQ;
 
 #define MAX_ENTRIES 4096
-enum STATE{ INITIAL, TRANSITION, NO_PREDICTION, STEADY};
+enum STATE{ INITIAL, TRANSITION, NO_PREDICTION, STEADY, NO_ENTRY};
 struct rpt_t{
 	u_int32_t pc;
 	u_int32_t prev_addr;
@@ -61,8 +62,15 @@ Prefetcher::Prefetcher() {
 #endif
 
 #ifdef STRIDE_DIRECTED_PREFETCH
+	head=0; 
+	index_spt=0;
 	for(int i=0; i<MAX_ENTRIES; i++){
 		stride_prefetcher_buffer[i].tag=false;
+	}
+#endif
+#ifdef RPT_PREFETCH
+	for(int i=0; i<MAX_ENTRIES; i++){
+		rpt_prefetcher_buffer[i].state = NO_ENTRY;
 	}
 #endif
 	 }
@@ -72,22 +80,13 @@ bool Prefetcher::hasRequest(u_int32_t cycle) {
 }
 
 Request Prefetcher::getRequest(u_int32_t cycle) {
-	//Request req;
-	return _nextReq;
+return _nextReq;
+
 }
 
 void Prefetcher::completeRequest(u_int32_t cycle) { 
 		_ready=false;
 	return; }
-
-u_int32_t Prefetcher::getTag(u_int32_t addr) {
-	int b = (int)log2((double)_blockSize);
-	int s = (int)log2((double)_numSets);
-	int t = 32 - b - s;
-
-	u_int32_t tag = addr >> (b + s);
-	return tag;
-}
 
 /** One strange observation: #(nextReq.addr != req.addr) == #(_nextREq.addr == req.addr)
  * 
@@ -101,7 +100,7 @@ void Prefetcher::cpuRequest(Request req) {
 	/**
 	 * THIS IS THE CURRENT WINNER RIGHT NOW
 	 * This is going to be the simplest implementation, I have ever done. Prefetch each and every block from the cache without checking for the miss or anything.
-	 * [AVERAGE AMAT: 3.64 SECS]
+	 * [AVERAGE AMAT: 3.64 SECS] 21.8598
 	 */ 
 #ifdef	ALWAYS_PREFETCH
 	if(req.load){
@@ -217,15 +216,15 @@ void Prefetcher::cpuRequest(Request req) {
 			if(stride_prefetcher_buffer[global_index].pc == req.pc){
 				spt_hit++;
 				stride = req.addr - stride_prefetcher_buffer[global_index].addr;
+				stride_prefetcher_buffer[global_index].addr = req.addr;
 	#ifdef DEBUG
 				printf("STRIDE: %d\t SPT_HIT: %f\n", stride, spt_hit);
 	#endif
 				if(stride!=0){
 					_ready=true;
-					_nextReq.addr = req.addr + stride;
-					stride_prefetcher_buffer[global_index].addr = req.addr;
-					
+					_nextReq.addr = req.addr + 32;	
 				}
+				stride_prefetcher_buffer[global_index].last_stride = stride;
 				return;
 			}
 			else{
@@ -244,22 +243,19 @@ void Prefetcher::cpuRequest(Request req) {
 			_ready=false;
 		}
 	}
-	return;
+	index_spt=0;
+	 return;
 #endif
 
 #ifdef RPT_PREFETCH
 
-// To check 
-if(_ready){
-	//printf("aaiya thi pachu gayu\n");
-	return;
-}
+
 
 // Get the global index indexed by the pc of the instruction.
-global_index = (req.pc) % MAX_ENTRIES;
+global_index = (req.pc&0x0000ffff) % MAX_ENTRIES;
 correct = false;
 // Check if we have the same pc in the rpt table or it has been replaced by another pc due to aliasing or this is the first time we have seen this pc.
-if(req.pc != rpt_prefetcher_buffer[global_index].pc){
+if(rpt_prefetcher_buffer[global_index].state == NO_ENTRY){
 	rpt_prefetcher_buffer[global_index].pc = req.pc;
 	rpt_prefetcher_buffer[global_index].prev_addr = req.addr;
 	rpt_prefetcher_buffer[global_index].stride = 0;
@@ -273,7 +269,7 @@ else{
 	if(req.addr == (rpt_prefetcher_buffer[global_index].prev_addr + rpt_prefetcher_buffer[global_index].stride))
 		correct = true;
 	// Change the state from INITIAL to TRANSITION and change the stride and everything.
-	if((rpt_prefetcher_buffer[global_index].state == INITIAL) && (correct==false)){
+	if((rpt_prefetcher_buffer[global_index].state == INITIAL) && (correct==true)){
 		rpt_prefetcher_buffer[global_index].stride = req.addr - rpt_prefetcher_buffer[global_index].prev_addr;
 		rpt_prefetcher_buffer[global_index].prev_addr = req.addr;
 		rpt_prefetcher_buffer[global_index].state = TRANSITION;
@@ -283,15 +279,17 @@ else{
 	}
 	// Change the state from TRANS or STEADY to STEADY. We have a steady stride for 2 consecutive iteration.
 	else if(( rpt_prefetcher_buffer[global_index].state == TRANSITION || rpt_prefetcher_buffer[global_index].state == STEADY) && (correct==true)){
-		rpt_prefetcher_buffer[global_index].prev_addr = req.addr;
-		rpt_prefetcher_buffer[global_index].state = STEADY;
-		//printf("ama vadhare hovu joie\n");
 		if(rpt_prefetcher_buffer[global_index].stride!=0){
 		_ready=true;
-		_nextReq.addr = req.addr+ 64;
+		_nextReq.addr = req.addr+ rpt_prefetcher_buffer[global_index].stride;
 		}
 		else 
 			_ready=false;
+		rpt_prefetcher_buffer[global_index].prev_addr = req.addr;
+		rpt_prefetcher_buffer[global_index].state = STEADY;
+		//printf("ama vadhare hovu joie\n");
+		
+		
 		return;
 	}
 	// If the stride changed from the steady state and hence change the state from STEADY to INITIAL.
@@ -312,10 +310,13 @@ else{
 	}
 	// If the stride didn't changed in NO PRED State; change the state to TRANS.
 	else if((rpt_prefetcher_buffer[global_index].state == NO_PREDICTION) && (correct==true)){
+		if(rpt_prefetcher_buffer[global_index].stride!=0){
+		_ready=true;
+		_nextReq.addr = req.addr + rpt_prefetcher_buffer[global_index].stride;
+		}
 		rpt_prefetcher_buffer[global_index].prev_addr = req.addr;
 		rpt_prefetcher_buffer[global_index].state = TRANSITION;
-		_ready=true;
-		_nextReq.addr = req.addr + 64;
+		
 		return;
 	}
 
@@ -330,11 +331,8 @@ else{
 	else{
 	//	printf("aaiya kai b thai jaay aavu j na joie\n");
 	}
-}
+	}
+
 return;
 #endif
-
-
-
-
 }
