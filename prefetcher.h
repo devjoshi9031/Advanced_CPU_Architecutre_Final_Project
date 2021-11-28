@@ -16,8 +16,6 @@ struct tag_pf{
 
 
 class Prefetcher {
-	private:
-	int _blockSize = 32,_numSets= 1024;
   public:
     Prefetcher();
 	// should return true if a request is ready for this cycle
