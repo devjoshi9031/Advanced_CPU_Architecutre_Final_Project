@@ -6,16 +6,13 @@
 #include <math.h>
 struct Request;
 
-struct tag_pf{
-	u_int32_t addr;
-	bool tag;
-	// bool valid;
-};
 
 
 
 
 class Prefetcher {
+	private:
+	int head=-1, index_spt=-1, evict=0, capacity=0;
   public:
     Prefetcher();
 	// should return true if a request is ready for this cycle
