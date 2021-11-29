@@ -9,14 +9,24 @@
 
 
 // options to use for this define: [NO_PREFETCH, ALWAYS_PREFETCH, SAMPLE_PREFETCH, TAG_SEQ_PREFETCH, STRIDE_DIRECTED_PREFETCH, RPT_PREFETCH]
-#define RPT_PREFETCH	
+#define NO_PREFETCH	
 // #define DEBUG
 
 Request _nextReq;
-Request previous;
+Request prev;
 
 
 bool _ready=false;
+
+#ifdef NO_PREFETCH
+#define MAX_ENTRIES 512
+struct np_t{
+	u_int32_t addr;
+	int16_t stride;
+};
+np_t np_buffer[MAX_ENTRIES];
+int head=-1, index_np=0;
+#endif
 
 #ifdef TAG_SEQ_PREFETCH
 #define MAXIMUM_ENTRIES 512
@@ -73,6 +83,7 @@ Prefetcher::Prefetcher() {
 		rpt_prefetcher_buffer[i].state = NO_ENTRY;
 	}
 #endif
+prev.addr=0;
 	 }
 
 bool Prefetcher::hasRequest(u_int32_t cycle) {
@@ -94,7 +105,29 @@ void Prefetcher::completeRequest(u_int32_t cycle) {
 void Prefetcher::cpuRequest(Request req) { 
 
 #ifdef NO_PREFETCH
-	_ready=false;
+	if(head==-1){
+		np_buffer[0].addr = req.addr;
+		np_buffer[0].stride = 0;
+		head=1;
+		return;
+	}
+	int stride = req.addr - prev.addr;
+	np_buffer[head%MAX_ENTRIES-1].stride = stride;
+	index_np=-1;
+	for(int i=0; i<MAX_ENTRIES; i++){
+		if(req.addr == np_buffer[i].addr){
+			_ready=true;
+			index_np=i;
+			_nextReq.addr = req.addr+np_buffer[i].stride;
+		}
+	}
+	if(index_np==-1){
+		np_buffer[head%MAX_ENTRIES].addr = req.addr;
+		np_buffer[head%MAX_ENTRIES].stride = 0;
+	}
+	prev =req;
+
+	// printf("Pc: %x\t Prev_addr: %x\t req.addr: %x\t stride: %d\n", req.pc, _nextReq.addr, req.addr, req.addr - _nextReq.addr);
 	return;
 #endif
 	/**
@@ -104,7 +137,7 @@ void Prefetcher::cpuRequest(Request req) {
 	 */ 
 #ifdef	ALWAYS_PREFETCH
 	if(req.load){
-	_nextReq.addr = req.addr + 32;
+	_nextReq.addr = req.addr - 32;
 	_ready = true;
 	}
 #endif
