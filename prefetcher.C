@@ -5,17 +5,24 @@
 #include<math.h>
 #include <stdio.h>
 #include <sys/types.h>
+#include<iostream>
+#include<queue>
 
+using namespace std;
 
 // options to use for this define: [NO_PREFETCH, ALWAYS_PREFETCH, SAMPLE_PREFETCH, TAG_SEQ_PREFETCH, STRIDE_DIRECTED_PREFETCH]
-#define TAG_SEQ_PREFETCH	
+#define NO_PREFETCH	
 // #define DEBUG
 
 Request _nextReq;
 Request previous;
+#define BUFFER_MAX 20
+Request req_buffer[BUFFER_MAX];
 
-
+bool isfull=false;
+int ptr=0;
 bool _ready=false;
+int buffer=0;
 
 #ifdef TAG_SEQ_PREFETCH
 #define MAXIMUM_ENTRIES 512
@@ -35,6 +42,19 @@ int global_index=0, stride=0;
 float spt_hit=0, spt_miss=0;
 #endif
 
+#ifdef RPT_PREFETCH
+float correct_ind =0, total=0;
+#define MAX_ENTRIES 512
+enum STATE{ INITIAL,STEADY};
+struct rpt_t{
+	u_int32_t pc;
+	u_int32_t addr;
+	int32_t stride;
+	u_int8_t state;
+};
+rpt_t rpt_prefetcher_buffer[MAX_ENTRIES];
+bool correct=false; int head=-1, index_spt=-1;
+#endif
 Prefetcher::Prefetcher() { 
 	_ready = false;
 #ifdef TAG_SEQ_PREFETCH
@@ -51,16 +71,31 @@ Prefetcher::Prefetcher() {
 	 }
 
 bool Prefetcher::hasRequest(u_int32_t cycle) {
+	// printf("has request called at: %d\t", cycle);
+	
 	return _ready;
 }
 
 Request Prefetcher::getRequest(u_int32_t cycle) {
-	//Request req;
+	if(buffer==1){
+	if(_ready==true && (ptr>=0 || ptr<=BUFFER_MAX)){
+		_nextReq = req_buffer[ptr];
+		if(ptr!=0)
+			ptr--;
+		isfull=false;
+		
+	}
+	}
 	return _nextReq;
 }
 
-void Prefetcher::completeRequest(u_int32_t cycle) { 
+void Prefetcher::completeRequest(u_int32_t cycle) {
+	if(buffer==1){ 
+	if(ptr==0){
 		_ready=false;
+	}
+	}
+	else _ready=false;
 	return; }
 
 u_int32_t Prefetcher::getTag(u_int32_t addr) {
@@ -76,9 +111,119 @@ u_int32_t Prefetcher::getTag(u_int32_t addr) {
  * 
  */
 void Prefetcher::cpuRequest(Request req) { 
-
 #ifdef NO_PREFETCH
-	_ready=false;
+	if(!req.HitL1){
+		buffer=1;
+		if(isfull){
+			return;
+		}
+		else{
+			_ready=true;
+			for(int i=0; i<BUFFER_MAX; i++){
+				if(ptr>=BUFFER_MAX){
+					isfull=true;
+					return;
+				}
+				else{
+					previous.addr = req.addr+32;
+					req_buffer[ptr] =previous;
+					ptr++;
+					if(ptr==BUFFER_MAX)
+						isfull=true;
+				}
+			}
+		}
+	}
+	else{
+		buffer=0;
+		_nextReq.addr = req.addr+64;
+		_ready=true;
+	}
+	return;
+#endif
+
+#ifdef RPT_PREFETCH
+	if(head==-1){
+		rpt_prefetcher_buffer[0].pc = req.pc;
+		rpt_prefetcher_buffer[0].addr = req.addr;
+		rpt_prefetcher_buffer[0].stride = 0;
+		rpt_prefetcher_buffer[0].state = INITIAL;
+		head=1;
+		fprintf(stderr, "head: %d\n", head);
+		return;
+	}
+	index_spt = -1;
+	for(int i=0; i<MAX_ENTRIES; i++){
+		if(req.pc == rpt_prefetcher_buffer[i].pc){
+			index_spt = i;
+			break;
+		}
+	}
+	if(index_spt == -1){
+		rpt_prefetcher_buffer[head%MAX_ENTRIES].pc = req.pc;
+		rpt_prefetcher_buffer[head%MAX_ENTRIES].addr = req.addr;
+		rpt_prefetcher_buffer[head%MAX_ENTRIES].stride = 0;
+		rpt_prefetcher_buffer[head%MAX_ENTRIES].state = INITIAL;
+		head++;
+	}
+	else{
+		total++;
+		
+		correct = false;
+		int stride = req.addr - rpt_prefetcher_buffer[index_spt].addr;
+		if(rpt_prefetcher_buffer[index_spt].stride==stride){
+			correct=true;
+		}
+		if((rpt_prefetcher_buffer[index_spt].state == INITIAL || rpt_prefetcher_buffer[index_spt].state ==STEADY) && (correct == true)){
+			//rpt_prefetcher_buffer[index_spt].stride = req.addr - rpt_prefetcher_buffer[index_spt].addr;
+		
+			rpt_prefetcher_buffer[index_spt].state = STEADY;
+			rpt_prefetcher_buffer[index_spt].addr = req.addr;
+			_nextReq.addr = rpt_prefetcher_buffer[index_spt].stride+req.addr;
+			_ready=true;
+		}
+		else if((rpt_prefetcher_buffer[index_spt].state == STEADY || rpt_prefetcher_buffer[index_spt].state == INITIAL) && correct == false){
+			fprintf(stderr, "Correct: %f", correct_ind/total);	
+			correct_ind++;
+			rpt_prefetcher_buffer[index_spt].stride = req.addr - rpt_prefetcher_buffer[index_spt].addr;
+			rpt_prefetcher_buffer[index_spt].addr = req.addr;
+			rpt_prefetcher_buffer[index_spt].state = INITIAL;
+			_ready=false;
+		}
+	}
+
+	// 	else if((rpt_prefetcher_buffer[index_spt].state == INITIAL || rpt_prefetcher_buffer[index_spt].state == TRANSITION || rpt_prefetcher_buffer[index_spt].state == STEADY) && (correct==true)){
+			
+	// 		rpt_prefetcher_buffer[index_spt].addr = req.addr;
+	// 		rpt_prefetcher_buffer[index_spt].state = STEADY;
+	// 		_nextReq.addr = rpt_prefetcher_buffer[index_spt].stride+rpt_prefetcher_buffer[index_spt].addr;
+	// 		_ready=true;
+	// 	}
+	// 	else if((rpt_prefetcher_buffer[index_spt].state == STEADY) && (correct==false)){
+			
+	// 		rpt_prefetcher_buffer[index_spt].addr = req.addr;
+	// 		rpt_prefetcher_buffer[index_spt].state = INITIAL;
+	// 		_nextReq.addr = rpt_prefetcher_buffer[index_spt].stride+rpt_prefetcher_buffer[index_spt].addr;
+	// 		_ready=true;
+	// 	}
+	// 	else if((rpt_prefetcher_buffer[index_spt].state == TRANSITION) && (correct==false)){
+	// 		rpt_prefetcher_buffer[index_spt].stride = req.addr - rpt_prefetcher_buffer[index_spt].addr;
+	// 		rpt_prefetcher_buffer[index_spt].addr = req.addr;
+	// 		rpt_prefetcher_buffer[index_spt].state = NO_PREDICTION;
+	// 	}
+	// 	else if((rpt_prefetcher_buffer[index_spt].state == NO_PREDICTION) && (correct==true)){
+
+	// 		rpt_prefetcher_buffer[index_spt].state = TRANSITION;
+	// 		rpt_prefetcher_buffer[index_spt].addr = req.addr;
+	// 					_nextReq.addr = rpt_prefetcher_buffer[index_spt].stride+rpt_prefetcher_buffer[index_spt].addr;
+	// 		_ready=true;
+	// 	}
+	// 	else if((rpt_prefetcher_buffer[index_spt].state == NO_PREDICTION) && (correct==false)){
+	// 		rpt_prefetcher_buffer[index_spt].stride = req.addr - rpt_prefetcher_buffer[index_spt].addr;
+	// 		rpt_prefetcher_buffer[index_spt].addr = req.addr;
+	// 	}
+
+	// }
 	return;
 #endif
 	/**
