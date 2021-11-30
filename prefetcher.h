@@ -7,12 +7,10 @@
 struct Request;
 
 
-
-
-
 class Prefetcher {
 	private:
 	int head=-1, index_spt=-1, evict=0, capacity=0;
+
   public:
     Prefetcher();
 	// should return true if a request is ready for this cycle

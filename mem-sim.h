@@ -12,7 +12,7 @@ enum cpuState {
 };
 
 struct Request {
-	u_int32_t addr; // effective address of request (32 bits)
+	u_int32_t addr; // effective address of request (32 bits)	
 	u_int32_t pc; // PC of request (32 bits)
 	bool load; // true if load, false if store
 	bool fromCPU; // true if request originated in CPU (rather than prefetcher)

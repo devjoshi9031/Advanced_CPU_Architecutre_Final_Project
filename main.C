@@ -256,13 +256,13 @@ int main(int argc, char* argv[]) {
 	double L2BW = (double)nRequestsL2 / (double)curr_cycle;
 	double memBW = (double)memCycles / (double)curr_cycle;
 
-	fprintf(stderr, "total run time for %s trace: %u\n",argv[1], curr_cycle);
-	fprintf(stderr, "D-cache total hit rate for %s trace: %f\n",argv[1],cpu.getHitRateL1());
-	fprintf(stderr, "L2 cache total hit rate for %s trace: %f\n",argv[1],cpu.getHitRateL2());
-	//rintf("%.4f\n",cpu.getAMAT());
-	fprintf(stderr, "Average Memory Queue Size for %s trace: %f\n",argv[1],avgMemQ);
-	fprintf(stderr, "L2 BW Utilization for %s trace : %f\n",argv[1],L2BW);
-	fprintf(stderr, "Memory BW Utilization for %s trace: %f\n",argv[1],memBW);
+	// fprintf(stderr, "total run time for %s trace: %u\n",argv[1], curr_cycle);
+	// fprintf(stderr, "D-cache total hit rate for %s trace: %f\n",argv[1],cpu.getHitRateL1());
+	// fprintf(stderr, "L2 cache total hit rate for %s trace: %f\n",argv[1],cpu.getHitRateL2());
+	// //rintf("%.4f\n",cpu.getAMAT());
+	// fprintf(stderr, "Average Memory Queue Size for %s trace: %f\n",argv[1],avgMemQ);
+	// fprintf(stderr, "L2 BW Utilization for %s trace : %f\n",argv[1],L2BW);
+	// fprintf(stderr, "Memory BW Utilization for %s trace: %f\n",argv[1],memBW);
 
 
 	// create output file name based on trace file name
